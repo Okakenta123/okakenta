@@ -1,6 +1,7 @@
 import { site } from '../data/sample';
 import { t, type Key } from '../i18n';
-import { STEPS, canEnter, rowStatus, useStore, useVersionLabel, type Actor } from '../store';
+import { STEPS, canEnter, usePlaceStates, useStore, useVersionLabel, type Actor } from '../store';
+import { relTime, useNow } from './time';
 
 function Logo() {
   return (
@@ -18,7 +19,7 @@ function Logo() {
 export function Avatar({ who, size = 28 }: { who: Actor; size?: number }) {
   const label = who === 'site' ? site.people.site.initial : who === 'robot' ? site.people.robot.initial : who === 'ai' ? 'AI' : '•';
   return (
-    <span className={`avatar av-${who}`} style={{ width: size, height: size, fontSize: size * 0.42 }}>
+    <span className={`avatar av-${who}`} style={{ width: size, height: size, fontSize: size * (label.length > 1 ? 0.36 : 0.42) }}>
       {label}
     </span>
   );
@@ -27,6 +28,8 @@ export function Avatar({ who, size = 28 }: { who: Actor; size?: number }) {
 export function AppBar() {
   const step = useStore((s) => s.step);
   const showToast = useStore((s) => s.showToast);
+  const me = useStore((s) => s.me);
+  const setMe = useStore((s) => s.setMe);
   const v = useVersionLabel();
   return (
     <header className="appbar">
@@ -42,13 +45,19 @@ export function AppBar() {
       </nav>
       <span className={`ver ${v.draft ? 'is-draft' : v.confirmed ? 'is-ok' : ''}`}>{v.label}</span>
       <div className="appbar-right">
+        <span className="acting hide-sm">{t('app.actingAs', { name: site.people[me].name })}</span>
         <div className="people">
-          <span title={`${site.people.site.name}（${t('app.roleSite')}・${site.people.site.role}）`}>
-            <Avatar who="site" />
-          </span>
-          <span title={`${site.people.robot.name}（${t('app.roleRobot')}・${site.people.robot.role}）`}>
-            <Avatar who="robot" />
-          </span>
+          {(['site', 'robot'] as const).map((p) => (
+            <button
+              key={p}
+              className={`person ${me === p ? 'is-me' : ''}`}
+              onClick={() => setMe(p)}
+              title={`${site.people[p].name}（${site.people[p].org}・${site.people[p].role}）${me === p ? '' : ' — ' + t('app.switchTo', { name: site.people[p].name })}`}
+            >
+              <Avatar who={p} size={30} />
+              <i className="online" aria-label={t('app.online')} />
+            </button>
+          ))}
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => showToast(t('app.shared'))}>
           <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden>
@@ -86,45 +95,36 @@ export function Stepper() {
 }
 
 export function SidePanel() {
-  const rows = useStore((s) => s.rows);
-  const pass = useStore((s) => s.pass);
   const activity = useStore((s) => s.activity);
   const step = useStore((s) => s.step);
   const answers = useStore((s) => s.answers.length);
   const photos = useStore((s) => s.photos.filter((p) => p.selected).length);
   const checked = useStore((s) => s.checkedPlaces.length);
-  const all = [...rows, pass];
-  const total = all.length;
-  const agreed = all.filter((r) => rowStatus(r) === 'agreed').length;
-  const okS = all.filter((r) => r.okSite).length;
-  const okR = all.filter((r) => r.okRobot).length;
-  const pct = Math.round((agreed / total) * 100);
+  const st = usePlaceStates();
+  const now = useNow();
+  const pct = Math.round((st.ready / st.total) * 100);
 
   return (
     <aside className="side">
       <section className="card side-card">
         <h3 className="card-h">{t('side.status')}</h3>
-        <div className="meter" aria-label={t('side.agreed', { a: agreed, t: total })}>
+        <div className="meter">
           <div className="meter-bar" style={{ width: `${pct}%` }} />
         </div>
         <div className="meter-row">
-          <span>{t('side.agreed', { a: agreed, t: total })}</span>
+          <span>{t('side.agreed', { a: st.ready, t: st.total })}</span>
           <b>{pct}%</b>
         </div>
         <div className="okcount">
           <div>
-            <Avatar who="site" size={22} />
-            <span>{t('side.okSite')}</span>
-            <b>
-              {okS}/{total}
-            </b>
+            <i className="dot" style={{ background: '#e8930c' }} />
+            <span>{t('side.discussing')}</span>
+            <b>{st.total - st.ready}</b>
           </div>
           <div>
-            <Avatar who="robot" size={22} />
-            <span>{t('side.okRobot')}</span>
-            <b>
-              {okR}/{total}
-            </b>
+            <i className="dot" style={{ background: '#64748b' }} />
+            <span>{t('side.openComments')}</span>
+            <b>{st.open}</b>
           </div>
         </div>
         {step === 's11' && <p className="muted small">{t('side.progress11', { a: Math.min(answers, 4), p: Math.min(photos, 3) })}</p>}
@@ -140,7 +140,7 @@ export function SidePanel() {
               <li key={a.id}>
                 <Avatar who={a.who} size={20} />
                 <span className="feed-t">{a.text}</span>
-                <time>{a.at}</time>
+                <time>{relTime(a.at, now)}</time>
               </li>
             ))}
           </ul>

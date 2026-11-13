@@ -8,8 +8,8 @@ export type Owner = 'robot' | 'human' | 'out';
 export const site = {
   name: '通販倉庫の箱詰めライン A',
   people: {
-    site: { name: '佐藤', role: '現場責任者', initial: '佐' },
-    robot: { name: '高橋', role: 'Deployment Lead', initial: '高' },
+    site: { name: 'KM', role: '現場責任者', org: '導入先', initial: 'KM' },
+    robot: { name: 'JR', role: 'Deployment Lead', org: 'ロボット企業', initial: 'JR' },
   },
   humanThroughput: 120, // 箱/時（今の人の実績）
 };
@@ -101,7 +101,11 @@ export interface RowSeed {
   id: string;
   place: PlaceId;
   task: string;
+  /** 最初の担当の案（null は未定） */
+  owner: Owner | null;
   condition: string;
+  /** この作業の合格ライン（3D に寸法ラベルのように出す） */
+  pass: string;
   evidence: Evidence;
   /** 実機テストの方法と理由（ロボット担当のとき） */
   test: { method: 'real' | 'sim'; reason: string };
@@ -109,18 +113,18 @@ export interface RowSeed {
 
 /** 合意シートの行（作業）。条件は提案として入れておく。 */
 export const rowSeeds: RowSeed[] = [
-  { id: 'r1', place: 'tray', task: '箱物の商品を取る', condition: '2kg 以下の箱物。トレーの手前 1 列のみ', evidence: { type: 'answer', q: 0 }, test: { method: 'real', reason: 'つかみ・取り出しは物理接触が多く、実機でしか確かめられない' } },
-  { id: 'r2', place: 'tray', task: '袋入りの柔らかい商品を取る', condition: '人が取り出して作業台に置く', evidence: { type: 'answer', q: 1 }, test: { method: 'real', reason: '袋の変形はシミュレーションの再現度が低い' } },
-  { id: 'r3', place: 'tray', task: '西日の中で商品を見分ける', condition: '夕方 16〜18 時は棚に遮光カーテン', evidence: { type: 'answer', q: 2 }, test: { method: 'sim', reason: '照明条件はシミュレーションで幅広く振れる。実機は代表 1 条件のみ' } },
-  { id: 'r4', place: 'boxes', task: '組み立て済みの箱を取る', condition: '箱置き場は 1 段積みまで', evidence: { type: 'answer', q: 0 }, test: { method: 'real', reason: '段ボールの摩擦・たわみは実機で確認する' } },
-  { id: 'r5', place: 'boxes', task: '潰れた箱をよける', condition: '見つけたら脇に置き、人に知らせる', evidence: { type: 'photo', index: 1, text: '写真2：箱置き場の潰れた段ボール' }, test: { method: 'sim', reason: '潰れ方のパターンを数多く試せる。代表 3 箱は実機でも確認' } },
-  { id: 'r6', place: 'workbench', task: '商品を箱に詰める', condition: '1 箱あたり 1〜3 点', evidence: { type: 'answer', q: 0 }, test: { method: 'real', reason: '箱の中での位置合わせは接触を伴う' } },
-  { id: 'r7', place: 'workbench', task: 'テープで封をする', condition: '封かん機を使う。テープ切れは人が補充', evidence: { type: 'answer', q: 0 }, test: { method: 'real', reason: 'テープの貼り付き具合は実機でしか測れない' } },
-  { id: 'r8', place: 'conveyor', task: '箱をコンベアに流す', condition: 'コンベアは 0.3 m/s 以下', evidence: { type: 'answer', q: 0 }, test: { method: 'sim', reason: '置き位置と速度の組み合わせを網羅的に試す' } },
-  { id: 'r9', place: 'aisle', task: '通路の人・台車と共存する', condition: '人が 1.5 m 以内に入ったら減速、0.5 m で停止', evidence: { type: 'answer', q: 2 }, test: { method: 'sim', reason: '人の動きは危険を伴うため、まずシミュレーションで網羅。停止は実機でも確認' } },
+  { id: 'r1', owner: 'robot', pass: '取り出し成功率 99% 以上', place: 'tray', task: '箱物の商品を取る', condition: '2kg 以下の箱物。トレーの手前 1 列のみ', evidence: { type: 'answer', q: 0 }, test: { method: 'real', reason: 'つかみ・取り出しは物理接触が多く、実機でしか確かめられない' } },
+  { id: 'r2', owner: 'human', pass: '人の作業でラインを止めない', place: 'tray', task: '袋入りの柔らかい商品を取る', condition: '人が取り出して作業台に置く', evidence: { type: 'answer', q: 1 }, test: { method: 'real', reason: '袋の変形はシミュレーションの再現度が低い' } },
+  { id: 'r3', owner: null, pass: '3,000 lx でも見分け 99% 以上', place: 'tray', task: '西日の中で商品を見分ける', condition: '夕方 16〜18 時は棚に遮光カーテン', evidence: { type: 'answer', q: 2 }, test: { method: 'sim', reason: '照明条件はシミュレーションで幅広く振れる。実機は代表 1 条件のみ' } },
+  { id: 'r4', owner: 'robot', pass: '箱の取り出し 100%', place: 'boxes', task: '組み立て済みの箱を取る', condition: '箱置き場は 1 段積みまで', evidence: { type: 'answer', q: 0 }, test: { method: 'real', reason: '段ボールの摩擦・たわみは実機で確認する' } },
+  { id: 'r5', owner: null, pass: '潰れた箱を 100% よける', place: 'boxes', task: '潰れた箱をよける', condition: '見つけたら脇に置き、人に知らせる', evidence: { type: 'photo', index: 1, text: '写真2：箱置き場の潰れた段ボール' }, test: { method: 'sim', reason: '潰れ方のパターンを数多く試せる。代表 3 箱は実機でも確認' } },
+  { id: 'r6', owner: 'robot', pass: '詰め間違い 0 件/日', place: 'workbench', task: '商品を箱に詰める', condition: '1 箱あたり 1〜3 点', evidence: { type: 'answer', q: 0 }, test: { method: 'real', reason: '箱の中での位置合わせは接触を伴う' } },
+  { id: 'r7', owner: 'robot', pass: 'テープの浮き 1% 以下', place: 'workbench', task: 'テープで封をする', condition: '封かん機を使う。テープ切れは人が補充', evidence: { type: 'answer', q: 0 }, test: { method: 'real', reason: 'テープの貼り付き具合は実機でしか測れない' } },
+  { id: 'r8', owner: 'robot', pass: '処理数 96 箱/時 以上', place: 'conveyor', task: '箱をコンベアに流す', condition: 'コンベアは 0.3 m/s 以下', evidence: { type: 'answer', q: 0 }, test: { method: 'sim', reason: '置き位置と速度の組み合わせを網羅的に試す' } },
+  { id: 'r9', owner: 'robot', pass: '1 m 以内で減速、50 cm で停止', place: 'aisle', task: '通路の人・台車と共存する', condition: '人と台車が通る時間帯も止めずに動く', evidence: { type: 'answer', q: 2 }, test: { method: 'sim', reason: '人の動きは危険を伴うため、まずシミュレーションで網羅。停止は実機でも確認' } },
 ];
 
-export const defaultPass = { throughputPct: 70, successRate: 99, interventions: 2 };
+export const defaultPass = { throughputPct: 80, successRate: 99, interventions: 2 };
 
 export const testVenue = 'ロボット企業の試験場（ライン A の作業台・流動棚・コンベアを同じ寸法で再現した区画）';
 
@@ -135,7 +139,7 @@ export const reproduceConditions = [
 
 /** 取り込む実機の結果（デモ用） */
 export const sampleResults = {
-  throughput: 88, // 箱/時
+  throughput: 98, // 箱/時
   successRate: 98.6,
   interventions: 1.6,
   hours: 4,
@@ -154,3 +158,61 @@ export const sampleResults = {
     { id: 'p2', row: null, text: '成功率 98.6% は合格ライン 99% に届かず。封かんの改善後に同じ合格ラインで再テストする', condition: null },
   ],
 };
+
+// ---------- 共同編集のサンプル ----------
+
+export type Party = 'site' | 'robot';
+
+export interface CommentSeed {
+  id: string;
+  place: PlaceId;
+  /** ピンを置く 3D の位置 */
+  pos: [number, number, number];
+  messages: { who: Party; text: string; minutesAgo: number }[];
+}
+
+/** 最初から 3D にピン留めされているコメント（未解決） */
+export const commentSeeds: CommentSeed[] = [
+  {
+    id: 'c1',
+    place: 'boxes',
+    pos: [-0.62, 0.75, 1.8],
+    messages: [
+      { who: 'site', text: '潰れた箱は週に何回か来る', minutesAgo: 34 },
+      { who: 'robot', text: '頻度が分かれば実機テストで再現します。週に何回くらいですか？', minutesAgo: 21 },
+    ],
+  },
+  {
+    id: 'c2',
+    place: 'conveyor',
+    pos: [4.4, 1.25, -1.1],
+    messages: [
+      { who: 'site', text: '繁忙期は140箱/時になる', minutesAgo: 27 },
+      { who: 'robot', text: '処理数の合格ラインを繁忙期に合わせるか決めたいです。', minutesAgo: 12 },
+    ],
+  },
+  {
+    id: 'c3',
+    place: 'tray',
+    pos: [-3.55, 1.55, -0.45],
+    messages: [{ who: 'robot', text: '夕方の西日は遮光カーテンで抑えられますか？見分けの条件に入れたいです。', minutesAgo: 18 }],
+  },
+  {
+    id: 'c4',
+    place: 'aisle',
+    pos: [3.2, 0.9, 3.7],
+    messages: [{ who: 'site', text: '台車は朝と夕方に集中して通ります', minutesAgo: 9 }],
+  },
+];
+
+/** 最初から入っている変更履歴 */
+export const historySeeds: { who: Party | 'ai'; text: string; place?: PlaceId; minutesAgo: number }[] = [
+  { who: 'ai', text: 'ヒアリングから作業 9 件を取り出し', minutesAgo: 52 },
+  { who: 'robot', text: '「商品を箱に詰める」の担当を「ロボット」に', place: 'workbench', minutesAgo: 41 },
+  { who: 'site', text: '「袋入りの柔らかい商品を取る」の担当を「人」に', place: 'tray', minutesAgo: 38 },
+  { who: 'robot', text: '「箱をコンベアに流す」の合格ラインを「処理数 96 箱/時 以上」に', place: 'conveyor', minutesAgo: 25 },
+  { who: 'robot', text: '「通路の人・台車と共存する」の合格ラインを「1 m 以内で減速、50 cm で停止」に', place: 'aisle', minutesAgo: 14 },
+];
+
+/** 相手のカーソルが巡る場所（演出） */
+export const cursorTour: PlaceId[] = ['conveyor', 'workbench', 'boxes', 'tray', 'aisle'];

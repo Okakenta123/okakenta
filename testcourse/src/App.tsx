@@ -15,17 +15,23 @@ export default function App() {
     <div className="app">
       <AppBar />
       <Stepper />
-      <div className="layout">
-        <main className="main">
-          <Suspense fallback={<div className="card loading">…</div>}>
-            {step === 's11' && <Step11 />}
-            {step === 's12' && <Step12 />}
-            {step === 's2' && <Step2 />}
-            {step === 's3' && <Step3 />}
-          </Suspense>
-        </main>
-        <SidePanel />
-      </div>
+      {step === 's2' ? (
+        // ステップ 2 は Figma のような全面の作業画面
+        <Suspense fallback={<div className="card loading">…</div>}>
+          <Step2 />
+        </Suspense>
+      ) : (
+        <div className="layout">
+          <main className="main">
+            <Suspense fallback={<div className="card loading">…</div>}>
+              {step === 's11' && <Step11 />}
+              {step === 's12' && <Step12 />}
+              {step === 's3' && <Step3 />}
+            </Suspense>
+          </main>
+          <SidePanel />
+        </div>
+      )}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

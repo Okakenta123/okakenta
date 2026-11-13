@@ -1,6 +1,6 @@
 import { placeById, reproduceConditions, rowSeeds, sampleResults, site, testVenue } from '../data/sample';
 import { t, type Key } from '../i18n';
-import { useStore, useVersionLabel } from '../store';
+import { fmtTime, useStore, useVersionLabel } from '../store';
 import { useEvidenceText } from './Step2';
 
 const seedById = Object.fromEntries(rowSeeds.map((r) => [r.id, r]));
@@ -59,7 +59,7 @@ export function Step3() {
           <div>
             <h3>{t('s3.planTitle')}</h3>
             <p className="muted small">
-              {site.name} · {t('s3.planFrom', { n: ver.v })} · {ver.at}
+              {site.name} · {t('s3.planFrom', { n: ver.v })} · {fmtTime(ver.at)}
             </p>
           </div>
           <span className="ver-chip is-ok">v{ver.v}</span>
@@ -101,6 +101,7 @@ export function Step3() {
                 <th>{t('s2.cols.place')}</th>
                 <th>{t('s2.cols.task')}</th>
                 <th>{t('s2.cols.cond')}</th>
+                <th>{t('s2.cols.pass')}</th>
                 <th>{t('s3.method')}</th>
                 <th>{t('s3.reason')}</th>
               </tr>
@@ -116,6 +117,9 @@ export function Step3() {
                       <small className="muted block">{t('s3.evidencePrefix')}{ev(r.evidence).src}</small>
                     </td>
                     <td data-l={t('s2.cols.cond')}>{r.condition}</td>
+                    <td data-l={t('s2.cols.pass')}>
+                      <span className="pass-chip">{r.pass}</span>
+                    </td>
                     <td data-l={t('s3.method')}>
                       <span className={`method m-${m.method}`}>{t(`s3.${m.method}` as Key)}</span>
                     </td>
@@ -194,7 +198,7 @@ export function Step3() {
                 <tr>
                   <th>{t('s2.cols.place')}</th>
                   <th>{t('s2.cols.task')}</th>
-                  <th>{t('s3.method')}</th>
+                  <th>{t('s2.cols.pass')}</th>
                   <th>{t('s3.measured')}</th>
                   <th>{t('s3.result')}</th>
                 </tr>
@@ -206,10 +210,12 @@ export function Step3() {
                     <td data-l={t('s2.cols.task')}>
                       <b>{row.task}</b>
                     </td>
-                    <td data-l={t('s3.method')}>
-                      <span className={`method m-${seedById[row.id].test.method}`}>{t(`s3.${seedById[row.id].test.method}` as Key)}</span>
+                    <td data-l={t('s2.cols.pass')}>
+                      <span className="pass-chip">{row.pass}</span>
                     </td>
-                    <td data-l={t('s3.measured')}>{res.note}</td>
+                    <td data-l={t('s3.measured')}>
+                      <span className={`method m-${seedById[row.id].test.method}`}>{t(`s3.${seedById[row.id].test.method}` as Key)}</span> {res.note}
+                    </td>
                     <td data-l={t('s3.result')}>
                       <Verdict pass={res.pass} />
                     </td>

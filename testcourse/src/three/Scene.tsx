@@ -4,6 +4,7 @@ import { Environment, Lightformer, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { places, type PlaceId } from '../data/sample';
+import { anchors, type V3 } from './anchors';
 import { concreteRoughness, concreteTexture, wallTexture } from './textures';
 import {
   Carton,
@@ -28,10 +29,14 @@ export type ZoneLook = { color: string; label: string; badge?: string };
 export interface SceneProps {
   mode: 'check' | 'agree';
   selected: PlaceId | null;
-  onSelect: (p: PlaceId) => void;
+  /** 場所のクリック。point はクリックした 3D の位置 */
+  onSelect: (p: PlaceId, point?: V3) => void;
+  /** 場所以外の床をクリックしたとき（コメントを置くときなど） */
+  onFloor?: (point: V3) => void;
   look: (p: PlaceId) => ZoneLook;
   builtAt: number; // performance.now()/1000。0 なら即表示
   animate?: boolean;
+  children?: ReactNode;
 }
 
 // ---------- 生成の演出：順番に現れる ----------
@@ -201,7 +206,7 @@ function Zone({ id, look, selected, hovered, onSelect, onHover }: {
   look: ZoneLook;
   selected: boolean;
   hovered: boolean;
-  onSelect: (p: PlaceId) => void;
+  onSelect: (p: PlaceId, point?: V3) => void;
   onHover: (p: PlaceId | null) => void;
 }) {
   const place = places.find((p) => p.id === id)!;
@@ -222,7 +227,7 @@ function Zone({ id, look, selected, hovered, onSelect, onHover }: {
   const click = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     if (e.delta > 6) return;
-    onSelect(id);
+    onSelect(id, [e.point.x, e.point.y, e.point.z]);
   };
   return (
     <group position={[cx, 0.012, cz]}>
@@ -256,7 +261,7 @@ function FocusRig({ selected }: { selected: PlaceId | null }) {
     if (!selected) return;
     const p = places.find((x) => x.id === selected)!;
     const target = new THREE.Vector3(p.center[0], 0.6, p.center[1]);
-    const dist = selected === 'aisle' ? 12 : selected === 'conveyor' ? 9 : 7.5;
+    const dist = selected === 'aisle' ? 13 : selected === 'conveyor' ? 11 : 10;
     const dir = camera.position.clone().sub(controls?.target ?? new THREE.Vector3()).normalize();
     // 真上・真下からになり過ぎないよう補正
     dir.y = THREE.MathUtils.clamp(dir.y, 0.45, 0.8);
@@ -274,27 +279,26 @@ function FocusRig({ selected }: { selected: PlaceId | null }) {
   return null;
 }
 
-/** 3D の位置を画面座標に変換して、DOM のラベルを動かす */
-function PinProjector({ pins }: { pins: PinRefs }) {
+/** 登録された 3D の点を画面座標に変換して、DOM の要素を動かす */
+function Projector() {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const v = useMemo(() => new THREE.Vector3(), []);
   useFrame(() => {
-    places.forEach((p) => {
-      const el = pins.current[p.id];
-      if (!el) return;
-      v.set(p.center[0], p.labelHeight, p.center[1]).project(camera);
-      const visible = v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1;
-      el.style.opacity = visible ? '1' : '0';
-      el.style.transform = `translate(-50%, -50%) translate(${((v.x + 1) / 2) * size.width}px, ${((1 - v.y) / 2) * size.height}px)`;
+    anchors.forEach((a) => {
+      v.set(a.pos[0], a.pos[1], a.pos[2]).project(camera);
+      const visible = v.z < 1 && Math.abs(v.x) < 1.15 && Math.abs(v.y) < 1.15;
+      const x = ((v.x + 1) / 2) * size.width;
+      const y = ((1 - v.y) / 2) * size.height;
+      a.el.style.opacity = visible ? '1' : '0';
+      a.el.style.visibility = visible ? '' : 'hidden';
+      a.el.style.transform = a.tip ? `translate(${x}px, ${y}px)` : `translate(-50%, -50%) translate(${x}px, ${y}px)`;
     });
   });
   return null;
 }
 
-export type PinRefs = { current: Partial<Record<PlaceId, HTMLElement | null>> };
-
-export function WarehouseScene({ selected, onSelect, look, builtAt, animate = true, pins }: SceneProps & { pins: PinRefs }) {
+export function WarehouseScene({ selected, onSelect, onFloor, look, builtAt, animate = true, children }: SceneProps) {
   const [hovered, setHovered] = useState<PlaceId | null>(null);
   useEffect(() => {
     document.body.style.cursor = hovered ? 'pointer' : '';
@@ -343,7 +347,7 @@ export function WarehouseScene({ selected, onSelect, look, builtAt, animate = tr
 
       {/* 商品トレー（流動棚） */}
       <Appear order={4} builtAt={builtAt}>
-        <group onClick={(e) => { e.stopPropagation(); if (e.delta <= 6) onSelect('tray'); }}>
+        <group onClick={(e) => { e.stopPropagation(); if (e.delta <= 6) onSelect('tray', [e.point.x, e.point.y, e.point.z]); }}>
           <FlowRack position={[-4.4, 0, -1.4]} />
           <group position={[-4.4, 0, -0.2]} rotation={[0, Math.PI / 2, 0]}>
             <Person walk={false} range={[0, 0]} vestColor="#2fb36d" />
@@ -353,7 +357,7 @@ export function WarehouseScene({ selected, onSelect, look, builtAt, animate = tr
 
       {/* 作業台とロボット */}
       <Appear order={5} builtAt={builtAt}>
-        <group onClick={(e) => { e.stopPropagation(); if (e.delta <= 6) onSelect('workbench'); }}>
+        <group onClick={(e) => { e.stopPropagation(); if (e.delta <= 6) onSelect('workbench', [e.point.x, e.point.y, e.point.z]); }}>
           <Workbench position={[-1.3, 0, -0.75]} />
           <RobotArm position={[-1.3, 0, -1.75]} active={animate} />
           <SafetyFence points={[[-2.55, -0.55], [-2.55, -2.45], [-0.05, -2.45], [-0.05, -1.55]]} />
@@ -362,7 +366,7 @@ export function WarehouseScene({ selected, onSelect, look, builtAt, animate = tr
 
       {/* 箱置き場 */}
       <Appear order={6} builtAt={builtAt}>
-        <group onClick={(e) => { e.stopPropagation(); if (e.delta <= 6) onSelect('boxes'); }}>
+        <group onClick={(e) => { e.stopPropagation(); if (e.delta <= 6) onSelect('boxes', [e.point.x, e.point.y, e.point.z]); }}>
           <Pallet position={[-1.5, 0, 1.45]} />
           <FlatCardboard position={[-1.5, 0.144, 1.45]} count={16} />
           <Carton position={[-0.65, 0, 1.15]} size={[0.42, 0.28, 0.32]} />
@@ -373,7 +377,7 @@ export function WarehouseScene({ selected, onSelect, look, builtAt, animate = tr
 
       {/* コンベア */}
       <Appear order={7} builtAt={builtAt}>
-        <group onClick={(e) => { e.stopPropagation(); if (e.delta <= 6) onSelect('conveyor'); }}>
+        <group onClick={(e) => { e.stopPropagation(); if (e.delta <= 6) onSelect('conveyor', [e.point.x, e.point.y, e.point.z]); }}>
           <Conveyor position={[2.9, 0, -1.1]} length={5.2} running={animate} />
         </group>
         <PalletLoad position={[6.4, 0, -1.1]} layers={2} seed={7} />
@@ -382,7 +386,7 @@ export function WarehouseScene({ selected, onSelect, look, builtAt, animate = tr
 
       {/* 人の通路 */}
       <Appear order={8} builtAt={builtAt}>
-        <group onClick={(e) => { e.stopPropagation(); if (e.delta <= 6) onSelect('aisle'); }}>
+        <group onClick={(e) => { e.stopPropagation(); if (e.delta <= 6) onSelect('aisle', [e.point.x, e.point.y, e.point.z]); }}>
           <Person walk={animate} range={[-6.5, 6.5]} z={3.45} speed={0.85} />
           <HandCart position={[6.2, 0, 4.0]} rotation={[0, Math.PI, 0]} />
         </group>
@@ -404,7 +408,22 @@ export function WarehouseScene({ selected, onSelect, look, builtAt, animate = tr
         target={[-0.3, 0.5, 0.6]}
       />
       <FocusRig selected={selected} />
-      <PinProjector pins={pins} />
+      <Projector />
+      {children}
+      {onFloor && (
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0.5, 0.002, 0.5]}
+          onClick={(e) => {
+            if (e.delta > 6) return;
+            e.stopPropagation();
+            onFloor([e.point.x, 0, e.point.z]);
+          }}
+        >
+          <planeGeometry args={[21, 15]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      )}
     </>
   );
 }

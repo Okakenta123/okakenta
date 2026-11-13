@@ -1,43 +1,61 @@
-import { Suspense, useRef } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { places, type PlaceId } from '../data/sample';
 import { hasRenders, renders } from '../data/renders';
 import { t } from '../i18n';
 import { useStore } from '../store';
-import { WarehouseScene, type PinRefs, type ZoneLook } from './Scene';
+import { WarehouseScene, type ZoneLook } from './Scene';
+import { anchorRef, type V3 } from './anchors';
 
 export interface ViewerProps {
   mode: 'check' | 'agree';
   look: (p: PlaceId) => ZoneLook;
   legend?: { color: string; label: string }[];
-  overlay?: React.ReactNode;
-  height?: string;
+  /** 3D の上に重ねる DOM（コメントピン・ラベル・カーソルなど） */
+  overlay?: ReactNode;
+  /** 3D シーンの中に足すもの（カーソルを動かす処理など） */
+  sceneExtras?: ReactNode;
+  onPick?: (p: PlaceId, point?: V3) => void;
+  onFloor?: (point: V3) => void;
+  animate?: boolean;
+  className?: string;
+  hint?: boolean;
 }
 
-export function Viewer({ mode, look, legend, overlay, height }: ViewerProps) {
+const placeAnchor = Object.fromEntries(places.map((p) => [p.id, [p.center[0], p.labelHeight, p.center[1]] as V3]));
+
+export function Viewer({ mode, look, legend, overlay, sceneExtras, onPick, onFloor, animate, className, hint = true }: ViewerProps) {
   const selected = useStore((s) => s.selected);
   const select = useStore((s) => s.select);
   const builtAt = useStore((s) => s.builtAt);
   const build = useStore((s) => s.build);
   const view = useStore((s) => s.view);
   const setView = useStore((s) => s.setView);
+  const pick = onPick ?? ((p: PlaceId) => select(p));
 
-  const pins = useRef({}) as PinRefs;
-  const hovered = useStore((s) => s.selected);
   const media = view === 'render' ? (selected && renders.places[selected]) || renders.overview : undefined;
 
   return (
-    <div className="viewer" style={height ? { height } : undefined}>
+    <div className={`viewer ${className ?? ''}`}>
       {build !== 'none' && (
         <Canvas
           shadows
           dpr={[1, 2]}
           camera={{ position: [5.8, 6.6, 9.2], fov: 42, near: 0.1, far: 120 }}
           gl={{ antialias: true, preserveDrawingBuffer: true }}
-          onPointerMissed={() => undefined}
         >
           <Suspense fallback={null}>
-            <WarehouseScene mode={mode} selected={selected} onSelect={select} look={look} builtAt={builtAt} animate={build === 'built'} pins={pins} />
+            <WarehouseScene
+              mode={mode}
+              selected={selected}
+              onSelect={pick}
+              onFloor={onFloor}
+              look={look}
+              builtAt={builtAt}
+              animate={animate ?? build === 'built'}
+            >
+              {sceneExtras}
+            </WarehouseScene>
           </Suspense>
         </Canvas>
       )}
@@ -49,12 +67,10 @@ export function Viewer({ mode, look, legend, overlay, height }: ViewerProps) {
               <button
                 key={p.id}
                 type="button"
-                ref={(el) => {
-                  pins.current[p.id] = el;
-                }}
-                className={`pin ${hovered === p.id ? 'is-selected' : ''}`}
+                ref={anchorRef(`place-${p.id}`, placeAnchor[p.id])}
+                className={`pin ${selected === p.id ? 'is-selected' : ''}`}
                 style={{ ['--pin' as string]: l.color }}
-                onClick={() => select(p.id)}
+                onClick={() => pick(p.id)}
               >
                 <span className="pin-dot">{i + 1}</span>
                 <span className="pin-name">{p.short}</span>
@@ -62,6 +78,7 @@ export function Viewer({ mode, look, legend, overlay, height }: ViewerProps) {
               </button>
             );
           })}
+          {overlay}
         </div>
       )}
       {media && (
@@ -70,7 +87,7 @@ export function Viewer({ mode, look, legend, overlay, height }: ViewerProps) {
           {media.caption && <span className="viewer-media-cap">{media.caption}</span>}
         </div>
       )}
-      {overlay}
+      {build !== 'built' && overlay}
       {legend && build === 'built' && (
         <div className="viewer-legend">
           {legend.map((l) => (
@@ -83,11 +100,15 @@ export function Viewer({ mode, look, legend, overlay, height }: ViewerProps) {
       )}
       {hasRenders && build === 'built' && (
         <div className="viewer-toggle seg">
-          <button className={view === '3d' ? 'on' : ''} onClick={() => setView('3d')}>{t('app.view3d')}</button>
-          <button className={view === 'render' ? 'on' : ''} onClick={() => setView('render')}>{t('app.viewRender')}</button>
+          <button className={view === '3d' ? 'on' : ''} onClick={() => setView('3d')}>
+            {t('app.view3d')}
+          </button>
+          <button className={view === 'render' ? 'on' : ''} onClick={() => setView('render')}>
+            {t('app.viewRender')}
+          </button>
         </div>
       )}
-      {build === 'built' && <div className="viewer-hint">{t('app.hint3d')}</div>}
+      {hint && build === 'built' && <div className="viewer-hint">{t('app.hint3d')}</div>}
     </div>
   );
 }
